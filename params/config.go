@@ -512,6 +512,7 @@ type ChainConfig struct {
 	FeynmanFixTime *uint64 `json:"feynmanFixTime,omitempty"` // FeynmanFix switch time (nil = no fork, 0 = already activated)
 	CancunTime     *uint64 `json:"cancunTime,omitempty"`     // Cancun switch time (nil = no fork, 0 = already on cancun)
 	HaberTime      *uint64 `json:"haberTime,omitempty"`      // Haber switch time (nil = no fork, 0 = already on haber)
+	HaberFixTime   *uint64 `json:"haberFixTime,omitempty"`   // HaberFix switch time (nil = no fork, 0 = already on haberFix)
 	BohrTime       *uint64 `json:"bohrTime,omitempty"`       // Bohr switch time (nil = no fork, 0 = already on bohr)
 	PragueTime     *uint64 `json:"pragueTime,omitempty"`     // Prague switch time (nil = no fork, 0 = already on prague)
 	VerkleTime     *uint64 `json:"verkleTime,omitempty"`     // Verkle switch time (nil = no fork, 0 = already on verkle)
@@ -623,12 +624,17 @@ func (c *ChainConfig) String() string {
 		HaberTime = big.NewInt(0).SetUint64(*c.HaberTime)
 	}
 
+	var HaberFixTime *big.Int
+	if c.HaberFixTime != nil {
+		HaberFixTime = big.NewInt(0).SetUint64(*c.HaberFixTime)
+	}
+
 	var BohrTime *big.Int
 	if c.BohrTime != nil {
 		BohrTime = big.NewInt(0).SetUint64(*c.BohrTime)
 	}
 
-	return fmt.Sprintf("{ChainID: %v Homestead: %v DAO: %v DAOSupport: %v EIP150: %v EIP155: %v EIP158: %v Byzantium: %v Constantinople: %v Petersburg: %v Istanbul: %v, Muir Glacier: %v, Ramanujan: %v, Niels: %v, MirrorSync: %v, Bruno: %v, Berlin: %v, YOLO v3: %v, CatalystBlock: %v, London: %v, ArrowGlacier: %v, MergeFork:%v, Euler: %v, Gibbs: %v, Nano: %v, Moran: %v, Planck: %v,Luban: %v, Plato: %v, Hertz: %v, Hertzfix: %v, ShanghaiTime: %v, KeplerTime: %v, FeynmanTime: %v, FeynmanFixTime: %v, CancunTime: %v, HaberTime: %v, BohrTime: %v, Engine: %v}",
+	return fmt.Sprintf("{ChainID: %v Homestead: %v DAO: %v DAOSupport: %v EIP150: %v EIP155: %v EIP158: %v Byzantium: %v Constantinople: %v Petersburg: %v Istanbul: %v, Muir Glacier: %v, Ramanujan: %v, Niels: %v, MirrorSync: %v, Bruno: %v, Berlin: %v, YOLO v3: %v, CatalystBlock: %v, London: %v, ArrowGlacier: %v, MergeFork:%v, Euler: %v, Gibbs: %v, Nano: %v, Moran: %v, Planck: %v,Luban: %v, Plato: %v, Hertz: %v, Hertzfix: %v, ShanghaiTime: %v, KeplerTime: %v, FeynmanTime: %v, FeynmanFixTime: %v, CancunTime: %v, HaberTime: %v, HaberFixTime: %v, BohrTime: %v, Engine: %v}",
 		c.ChainID,
 		c.HomesteadBlock,
 		c.DAOForkBlock,
@@ -666,6 +672,7 @@ func (c *ChainConfig) String() string {
 		FeynmanFixTime,
 		CancunTime,
 		HaberTime,
+		HaberFixTime,
 		BohrTime,
 		engine,
 	)
@@ -939,6 +946,20 @@ func (c *ChainConfig) IsHaber(num *big.Int, time uint64) bool {
 	return c.IsLondon(num) && isTimestampForked(c.HaberTime, time)
 }
 
+// IsHaberFix returns whether time is either equal to the HaberFix fork time or greater.
+func (c *ChainConfig) IsHaberFix(num *big.Int, time uint64) bool {
+	return c.IsLondon(num) && isTimestampForked(c.HaberFixTime, time)
+}
+
+// IsOnHaberFix returns whether currentBlockTime is either equal to the HaberFix fork time or greater firstly.
+func (c *ChainConfig) IsOnHaberFix(currentBlockNumber *big.Int, lastBlockTime uint64, currentBlockTime uint64) bool {
+	lastBlockNumber := new(big.Int)
+	if currentBlockNumber.Cmp(big.NewInt(1)) >= 0 {
+		lastBlockNumber.Sub(currentBlockNumber, big.NewInt(1))
+	}
+	return !c.IsHaberFix(lastBlockNumber, lastBlockTime) && c.IsHaberFix(currentBlockNumber, currentBlockTime)
+}
+
 // IsBohr returns whether time is either equal to the Bohr fork time or greater.
 func (c *ChainConfig) IsBohr(num *big.Int, time uint64) bool {
 	return c.IsLondon(num) && isTimestampForked(c.BohrTime, time)
@@ -1017,6 +1038,7 @@ func (c *ChainConfig) CheckConfigForkOrder() error {
 		{name: "feynmanFixTime", timestamp: c.FeynmanFixTime},
 		{name: "cancunTime", timestamp: c.CancunTime},
 		{name: "haberTime", timestamp: c.HaberTime},
+		{name: "haberFixTime", timestamp: c.HaberFixTime},
 		{name: "bohrTime", timestamp: c.BohrTime},
 		{name: "pragueTime", timestamp: c.PragueTime, optional: true},
 		{name: "verkleTime", timestamp: c.VerkleTime, optional: true},
@@ -1164,6 +1186,12 @@ func (c *ChainConfig) checkCompatible(newcfg *ChainConfig, headNumber *big.Int, 
 	}
 	if isForkTimestampIncompatible(c.CancunTime, newcfg.CancunTime, headTimestamp) {
 		return newTimestampCompatError("Cancun fork timestamp", c.CancunTime, newcfg.CancunTime)
+	}
+	if isForkTimestampIncompatible(c.HaberTime, newcfg.HaberTime, headTimestamp) {
+		return newTimestampCompatError("Haber fork timestamp", c.HaberTime, newcfg.HaberTime)
+	}
+	if isForkTimestampIncompatible(c.HaberFixTime, newcfg.HaberFixTime, headTimestamp) {
+		return newTimestampCompatError("HaberFix fork timestamp", c.HaberFixTime, newcfg.HaberFixTime)
 	}
 	if isForkTimestampIncompatible(c.PragueTime, newcfg.PragueTime, headTimestamp) {
 		return newTimestampCompatError("Prague fork timestamp", c.PragueTime, newcfg.PragueTime)

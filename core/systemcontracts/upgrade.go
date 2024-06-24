@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/systemcontracts/euler"
 	"github.com/ethereum/go-ethereum/core/systemcontracts/feynman"
 	feynmanFix "github.com/ethereum/go-ethereum/core/systemcontracts/feynman_fix"
+	haberFix "github.com/ethereum/go-ethereum/core/systemcontracts/haber_fix"
 	"github.com/ethereum/go-ethereum/core/systemcontracts/gibbs"
 	"github.com/ethereum/go-ethereum/core/systemcontracts/kepler"
 	"github.com/ethereum/go-ethereum/core/systemcontracts/luban"
@@ -75,6 +76,8 @@ var (
 	feynmanUpgrade = make(map[string]*Upgrade)
 
 	feynmanFixUpgrade = make(map[string]*Upgrade)
+
+	haberFixUpgrade = make(map[string]*Upgrade)
 )
 
 func init() {
@@ -701,6 +704,22 @@ func init() {
 			},
 		},
 	}
+
+	haberFixUpgrade[chapelNet] = &Upgrade{
+		UpgradeName: "haberFix",
+		Configs: []*UpgradeConfig{
+			{
+				ContractAddr: common.HexToAddress(ValidatorContract),
+				CommitUrl:    "https://github.com/bnb-chain/bsc-genesis-contract/commit/2d6372ddba77902ef01e45887a425938376d5a5c",
+				Code:         haberFix.ChapelValidatorContract,
+			},
+			{
+				ContractAddr: common.HexToAddress(SlashContract),
+				CommitUrl:    "https://github.com/bnb-chain/bsc-genesis-contract/commit/2d6372ddba77902ef01e45887a425938376d5a5c",
+				Code:         haberFix.ChapelSlashContract,
+			},
+		},
+	}
 }
 
 func UpgradeBuildInSystemContract(config *params.ChainConfig, blockNumber *big.Int, lastBlockTime uint64, blockTime uint64, statedb *state.StateDB) {
@@ -775,6 +794,10 @@ func UpgradeBuildInSystemContract(config *params.ChainConfig, blockNumber *big.I
 
 	if config.IsOnFeynmanFix(blockNumber, lastBlockTime, blockTime) {
 		applySystemContractUpgrade(feynmanFixUpgrade[network], blockNumber, statedb, logger)
+	}
+
+	if config.IsOnHaberFix(blockNumber, lastBlockTime, blockTime) {
+		applySystemContractUpgrade(haberFixUpgrade[network], blockNumber, statedb, logger)
 	}
 
 	/*
