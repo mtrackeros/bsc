@@ -7,15 +7,12 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/state"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/params"
-
 	"github.com/ethereum/go-ethereum/core/systemcontracts/bruno"
 	"github.com/ethereum/go-ethereum/core/systemcontracts/euler"
 	"github.com/ethereum/go-ethereum/core/systemcontracts/feynman"
 	feynmanFix "github.com/ethereum/go-ethereum/core/systemcontracts/feynman_fix"
-	haberFix "github.com/ethereum/go-ethereum/core/systemcontracts/haber_fix"
 	"github.com/ethereum/go-ethereum/core/systemcontracts/gibbs"
+	haberFix "github.com/ethereum/go-ethereum/core/systemcontracts/haber_fix"
 	"github.com/ethereum/go-ethereum/core/systemcontracts/kepler"
 	"github.com/ethereum/go-ethereum/core/systemcontracts/luban"
 	"github.com/ethereum/go-ethereum/core/systemcontracts/mirror"
@@ -24,6 +21,8 @@ import (
 	"github.com/ethereum/go-ethereum/core/systemcontracts/planck"
 	"github.com/ethereum/go-ethereum/core/systemcontracts/plato"
 	"github.com/ethereum/go-ethereum/core/systemcontracts/ramanujan"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
 )
 
 type UpgradeConfig struct {
