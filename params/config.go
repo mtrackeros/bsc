@@ -234,11 +234,12 @@ var (
 		FeynmanFixTime:      newUint64(0),
 		CancunTime:          newUint64(0),
 		HaberTime:           newUint64(0),
-		BohrTime:            newUint64(0),
+		HaberFixTime:        _rialto_upgrade_height_,
+		BohrTime:            _rialto_upgrade_height_,
 
 		Parlia: &ParliaConfig{
-			Period: 3,
-			Epoch:  200,
+			Period: _rialto_parlia_period_,
+			Epoch:  _rialto_parlia_period_,
 		},
 	}
 
