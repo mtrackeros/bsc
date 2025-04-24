@@ -373,20 +373,21 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 	// Permit the downloader to use the trie cache allowance during fast sync
 	cacheLimit := cacheConfig.TrieCleanLimit + cacheConfig.TrieDirtyLimit + cacheConfig.SnapshotLimit
 	if eth.handler, err = newHandler(&handlerConfig{
-		NodeID:                 eth.p2pServer.Self().ID(),
-		Database:               chainDb,
-		Chain:                  eth.blockchain,
-		TxPool:                 eth.txPool,
-		Network:                networkID,
-		Sync:                   config.SyncMode,
-		BloomCache:             uint64(cacheLimit),
-		EventMux:               eth.eventMux,
-		RequiredBlocks:         config.RequiredBlocks,
-		DirectBroadcast:        config.DirectBroadcast,
-		DirectBroadcastList:    stack.Config().P2P.DirectBroadcastList,
-		EnableBroadcastFeature: stack.Config().EnableBroadcastFeature,
-		DisablePeerTxBroadcast: config.DisablePeerTxBroadcast,
-		PeerSet:                peers,
+		NodeID:                  eth.p2pServer.Self().ID(),
+		Database:                chainDb,
+		Chain:                   eth.blockchain,
+		TxPool:                  eth.txPool,
+		Network:                 networkID,
+		Sync:                    config.SyncMode,
+		BloomCache:              uint64(cacheLimit),
+		EventMux:                eth.eventMux,
+		RequiredBlocks:          config.RequiredBlocks,
+		DirectBroadcast:         config.DirectBroadcast,
+		EnableBroadcastFeatures: stack.Config().EnableBroadcastFeatures,
+		DirectBroadcastList:     stack.Config().P2P.DirectBroadcastList,
+		ProxyedValidatorList:    stack.Config().P2P.ProxyedValidatorList,
+		DisablePeerTxBroadcast:  config.DisablePeerTxBroadcast,
+		PeerSet:                 peers,
 	}); err != nil {
 		return nil, err
 	}
