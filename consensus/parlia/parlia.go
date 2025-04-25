@@ -59,8 +59,8 @@ const (
 	lorentzEpochLength   uint64 = 500  // Epoch length starting from the Lorentz hard fork
 	maxwellEpochLength   uint64 = 1000 // Epoch length starting from the Maxwell hard fork
 	defaultBlockInterval uint64 = 3000 // Default block interval in milliseconds
-	lorentzBlockInterval uint64 = 1500 // Block interval starting from the Lorentz hard fork
-	maxwellBlockInterval uint64 = 750  // Block interval starting from the Maxwell hard fork
+	lorentzBlockInterval uint64 = 50   // Block interval starting from the Lorentz hard fork
+	maxwellBlockInterval uint64 = 50   // Block interval starting from the Maxwell hard fork
 	defaultTurnLength    uint8  = 1    // Default consecutive number of blocks a validator receives priority for block production
 
 	extraVanity      = 32 // Fixed number of extra-data prefix bytes reserved for signer vanity
@@ -72,9 +72,9 @@ const (
 	validatorBytesLength            = common.AddressLength + types.BLSPublicKeyLength
 	validatorNumberSize             = 1 // Fixed number of extra prefix bytes reserved for validator number after Luban
 
-	wiggleTime                uint64 = 1000 // milliseconds, Random delay (per signer) to allow concurrent signers
-	defaultInitialBackOffTime uint64 = 1000 // milliseconds, Default backoff time for the second validator permitted to produce blocks
-	lorentzInitialBackOffTime uint64 = 2000 // milliseconds, Backoff time for the second validator permitted to produce blocks from the Lorentz hard fork
+	wiggleTime                uint64 = 1000  // milliseconds, Random delay (per signer) to allow concurrent signers
+	defaultInitialBackOffTime uint64 = 1000  // milliseconds, Default backoff time for the second validator permitted to produce blocks
+	lorentzInitialBackOffTime uint64 = 20000 // milliseconds, Backoff time for the second validator permitted to produce blocks from the Lorentz hard fork
 
 	systemRewardPercent = 4 // it means 1/2^4 = 1/16 percentage of gas fee incoming will be distributed to system
 
