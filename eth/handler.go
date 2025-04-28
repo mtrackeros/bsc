@@ -27,6 +27,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/beacon"
+	"github.com/ethereum/go-ethereum/consensus/parlia"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/forkid"
 	"github.com/ethereum/go-ethereum/core/monitor"
@@ -126,14 +127,20 @@ type handlerConfig struct {
 	DirectBroadcast          bool
 	DisablePeerTxBroadcast   bool
 	PeerSet                  *peerSet
+	EnableBroadcastFeatures  bool
+	DirectBroadcastList      []enode.ID
+	ProxyedValidatorList     []enode.ID
 	EnableQuickBlockFetching bool
 }
 
 type handler struct {
-	nodeID                 enode.ID
-	networkID              uint64
-	forkFilter             forkid.Filter // Fork ID filter, constant across the lifetime of the node
-	disablePeerTxBroadcast bool
+	nodeID                  enode.ID
+	networkID               uint64
+	forkFilter              forkid.Filter // Fork ID filter, constant across the lifetime of the node
+	disablePeerTxBroadcast  bool
+	enableBroadcastFeatures bool
+	directBroadcastList     []enode.ID
+	proxyedValidatorList    []enode.ID
 
 	snapSync        atomic.Bool // Flag whether snap sync is enabled (gets disabled if we already have blocks)
 	synced          atomic.Bool // Flag whether we're considered synchronised (enables transaction processing)
@@ -188,23 +195,26 @@ func newHandler(config *handlerConfig) (*handler, error) {
 		config.PeerSet = newPeerSet() // Nicety initialization for tests
 	}
 	h := &handler{
-		nodeID:                 config.NodeID,
-		networkID:              config.Network,
-		forkFilter:             forkid.NewFilter(config.Chain),
-		disablePeerTxBroadcast: config.DisablePeerTxBroadcast,
-		eventMux:               config.EventMux,
-		database:               config.Database,
-		txpool:                 config.TxPool,
-		votepool:               config.VotePool,
-		chain:                  config.Chain,
-		peers:                  config.PeerSet,
-		peersPerIP:             make(map[string]int),
-		requiredBlocks:         config.RequiredBlocks,
-		directBroadcast:        config.DirectBroadcast,
-		quitSync:               make(chan struct{}),
-		handlerDoneCh:          make(chan struct{}),
-		handlerStartCh:         make(chan struct{}),
-		stopCh:                 make(chan struct{}),
+		nodeID:                  config.NodeID,
+		networkID:               config.Network,
+		forkFilter:              forkid.NewFilter(config.Chain),
+		disablePeerTxBroadcast:  config.DisablePeerTxBroadcast,
+		eventMux:                config.EventMux,
+		database:                config.Database,
+		txpool:                  config.TxPool,
+		votepool:                config.VotePool,
+		chain:                   config.Chain,
+		peers:                   config.PeerSet,
+		peersPerIP:              make(map[string]int),
+		requiredBlocks:          config.RequiredBlocks,
+		directBroadcast:         config.DirectBroadcast,
+		enableBroadcastFeatures: config.EnableBroadcastFeatures,
+		directBroadcastList:     config.DirectBroadcastList,
+		proxyedValidatorList:    config.ProxyedValidatorList,
+		quitSync:                make(chan struct{}),
+		handlerDoneCh:           make(chan struct{}),
+		handlerStartCh:          make(chan struct{}),
+		stopCh:                  make(chan struct{}),
 	}
 	if config.Sync == ethconfig.FullSync {
 		// The database seems empty as the current block is the genesis. Yet the snap
@@ -365,6 +375,8 @@ func newHandler(config *handlerConfig) (*handler, error) {
 // protoTracker tracks the number of active protocol handlers.
 func (h *handler) protoTracker() {
 	defer h.wg.Done()
+	updateTicker := time.NewTicker(1 * time.Minute)
+	defer updateTicker.Stop()
 	var active int
 	for {
 		select {
@@ -372,6 +384,12 @@ func (h *handler) protoTracker() {
 			active++
 		case <-h.handlerDoneCh:
 			active--
+		case <-updateTicker.C:
+			if h.enableBroadcastFeatures {
+				// add onchain validator p2p node list later, it will enable the direct broadcast + no tx broadcast feature
+				// here check & enable peer broadcast features periodically, and it's a simple way to handle the peer change and the list change scenarios.
+				h.peers.enablePeerFeatures(h.queryValidatorNodeIDs(), h.directBroadcastList, h.proxyedValidatorList)
+			}
 		case <-h.quitSync:
 			// Wait for all active handlers to finish.
 			for ; active > 0; active-- {
@@ -807,6 +825,19 @@ func (h *handler) BroadcastBlock(block *types.Block, propagate bool) {
 			peer.AsyncSendNewBlock(block, td)
 		}
 
+		if h.needMoreDirectBroadcastPeers(block) {
+			var morePeers []*ethPeer
+			for i := len(transfer); i < len(peers); i++ {
+				if peers[i].EnableDirectBroadcast.Load() {
+					log.Debug("add extra direct broadcast peer", "peer", peers[i].ID())
+					morePeers = append(morePeers, peers[i])
+				}
+			}
+			for _, peer := range morePeers {
+				peer.AsyncSendNewBlock(block, td)
+			}
+		}
+
 		log.Trace("Propagated block", "hash", hash, "recipients", len(transfer), "duration", common.PrettyDuration(time.Since(block.ReceivedAt)))
 		return
 	}
@@ -817,6 +848,43 @@ func (h *handler) BroadcastBlock(block *types.Block, propagate bool) {
 		}
 		log.Trace("Announced block", "hash", hash, "recipients", len(peers), "duration", common.PrettyDuration(time.Since(block.ReceivedAt)))
 	}
+}
+
+// needMoreDirectBroadcastPeers checks if the block should be broadcast to all direct peers
+// if the block is mined by self or received from proxyed validator, just broadcast to all direct peers
+// if not, just gossip it.
+func (h *handler) needMoreDirectBroadcastPeers(block *types.Block) bool {
+	if !h.enableBroadcastFeatures {
+		return false
+	}
+	parlia, ok := h.chain.Engine().(*parlia.Parlia)
+	if !ok {
+		return false
+	}
+	if parlia.ConsensusAddress() == block.Coinbase() {
+		return true
+	}
+
+	return h.peers.existProxyedValidator(block.Coinbase(), h.proxyedValidatorList)
+}
+
+func (h *handler) queryValidatorNodeIDs() map[common.Address][]enode.ID {
+	latest := h.chain.CurrentHeader()
+	if !h.chain.Config().IsMaxwell(latest.Number, latest.Time) {
+		return nil
+	}
+
+	log.Debug("queryValidatorNodeIDs after maxwell", "number", latest.Number, "time", latest.Time)
+	parlia, ok := h.chain.Engine().(*parlia.Parlia)
+	if !ok {
+		return nil
+	}
+
+	nodeIDsMap, err := parlia.GetNodeIDsMap()
+	if err != nil {
+		return nil
+	}
+	return nodeIDsMap
 }
 
 // BroadcastTransactions will propagate a batch of transactions
